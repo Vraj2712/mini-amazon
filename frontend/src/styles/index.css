@@ -1,0 +1,15 @@
+/* frontend/src/styles/index.css */
+
+/* A simple global reset/placeholder—add your own styles here */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  body {
+    font-family: sans-serif;
+    background-color: #f5f5f5;
+    color: #333;
+  }
+  
