@@ -1,14 +1,16 @@
-// frontend/src/components/ProtectedRoute.jsx
-import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+// src/components/ProtectedRoute.jsx
+import React from "react";
+import { Navigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
-function ProtectedRoute({ isAuthenticated }) {
-  // You can replace isAuthenticated with your own check,
-  // for example: const isAuthenticated = !!localStorage.getItem('token');
-  if (!isAuthenticated) {
+export default function ProtectedRoute({ children }) {
+  const { user } = useAuth();
+
+  // If not logged in, redirect to /login
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
-  return <Outlet />;
-}
 
-export default ProtectedRoute;
+  // Otherwise render the protected page
+  return children;
+}

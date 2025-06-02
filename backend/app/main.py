@@ -4,8 +4,17 @@ from app.auth.routes import router as auth_router
 from app.routes.cart_routes import router as cart_router
 from app.routes.product_routes import router as product_router
 from app.routes.order_routes import router as order_router
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def read_root():

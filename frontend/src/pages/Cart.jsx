@@ -1,100 +1,305 @@
 // src/pages/Cart.jsx
-import React from 'react';
-import { useCart } from '../contexts/CartContext';
-import { useNavigate } from 'react-router-dom';
-import axiosInstance from '../api/axiosInstance';
+import React, { useState, useEffect } from "react";
+import axiosInstance from "../api/axiosInstance";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function Cart() {
-  const { items, removeFromCart, updateQuantity, clearCart } = useCart();
+  const [detailedItems, setDetailedItems] = useState([]); // { product_id, quantity, product }
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const { token, logout } = useAuth();
   const navigate = useNavigate();
 
-  const total = items.reduce(
-    (acc, item) => acc + item.product.price * item.quantity,
-    0
-  );
+  // 1) Load cart on mount or whenever token changes
+  useEffect(() => {
+    if (!token) {
+      navigate("/login");
+      return;
+    }
 
-  const handleCheckout = async () => {
-    try {
-      // 1. Create backend cart entries
-      //    In our FastAPI, placing an order pulls from *server‐side* cart tied to user.  
-      //    For simplicity, we can just call PUT /cart/update for each item, then POST /orders.
-      //    But earlier backend logic expects items in the “user’s cart” collection in Mongo,
-      //    so you’d need to sync localStorage cart to server first:
-      for (const item of items) {
-        await axiosInstance.post('/cart/add', {
-          product_id: item.product.id,
-          quantity: item.quantity,
-        });
+    const loadCart = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        // GET /cart → { items: [ { product_id, quantity } , … ] }
+        const cartResp = await axiosInstance.get("/cart");
+        const items = cartResp.data.items || [];
+
+        // Fetch product details in parallel
+        const details = await Promise.all(
+          items.map(async (item) => {
+            try {
+              const prodResp = await axiosInstance.get(
+                `/products/${item.product_id}`
+              );
+              return {
+                product_id: item.product_id,
+                quantity: item.quantity,
+                product: prodResp.data,
+              };
+            } catch {
+              return {
+                product_id: item.product_id,
+                quantity: item.quantity,
+                product: null,
+              };
+            }
+          })
+        );
+        setDetailedItems(details);
+      } catch (err) {
+        console.error("Failed to load cart:", err);
+        const status = err.response?.status;
+        if (status === 401 || status === 403) {
+          logout();
+        } else {
+          setError(
+            err.response?.data?.detail || "Could not load your cart."
+          );
+        }
+      } finally {
+        setLoading(false);
       }
-      // 2. Place the order
-      const resp = await axiosInstance.post('/orders/');
-      alert('Order placed: ' + JSON.stringify(resp.data));
-      clearCart();
-      navigate('/orders');
+    };
+
+    loadCart();
+  }, [token, logout, navigate]);
+
+  // 2) Remove a single item
+  const handleRemove = async (product_id) => {
+    // Optimistically remove from UI
+    setDetailedItems((prev) =>
+      prev.filter((it) => it.product_id !== product_id)
+    );
+
+    try {
+      // **Make sure this matches your FastAPI route exactly**:
+      // DELETE http://localhost:8000/cart/{product_id}
+      await axiosInstance.delete(`/cart/${product_id}`);
     } catch (err) {
-      console.error(err);
-      alert('Checkout failed: ' + err.response?.data?.detail || err.message);
+      console.error("Delete error:", err);
+      const status = err.response?.status;
+      if (status === 401 || status === 403) {
+        // Unauthorized → force logout
+        logout();
+        return;
+      }
+      if (status === 404) {
+        setError("Item was not found in your cart.");
+      } else {
+        setError(err.response?.data?.detail || "Could not remove item.");
+      }
+      // Re‐load the cart so UI stays consistent
+      try {
+        const reloadResp = await axiosInstance.get("/cart");
+        const items = reloadResp.data.items || [];
+        const details = await Promise.all(
+          items.map(async (item) => {
+            try {
+              const prodResp = await axiosInstance.get(
+                `/products/${item.product_id}`
+              );
+              return {
+                product_id: item.product_id,
+                quantity: item.quantity,
+                product: prodResp.data,
+              };
+            } catch {
+              return {
+                product_id: item.product_id,
+                quantity: item.quantity,
+                product: null,
+              };
+            }
+          })
+        );
+        setDetailedItems(details);
+      } catch (reloadErr) {
+        console.error("Failed to reload cart:", reloadErr);
+      }
     }
   };
 
-  if (items.length === 0) {
-    return <p>Your cart is empty.</p>;
+  // 3) Change quantity
+  const handleQuantityChange = async (product_id, newQty) => {
+    // Update local state first
+    setDetailedItems((prev) =>
+      prev.map((it) =>
+        it.product_id === product_id ? { ...it, quantity: newQty } : it
+      )
+    );
+
+    try {
+      await axiosInstance.put("/cart/update", {
+        product_id,
+        quantity: newQty,
+      });
+      if (newQty === 0) {
+        // Remove locally if quantity becomes zero
+        setDetailedItems((prev) =>
+          prev.filter((it) => it.product_id !== product_id)
+        );
+      }
+    } catch (err) {
+      console.error("Quantity update error:", err);
+      const status = err.response?.status;
+      if (status === 401 || status === 403) {
+        logout();
+        return;
+      }
+      setError(err.response?.data?.detail || "Could not update quantity.");
+      // Re‐fetch cart on failure
+      try {
+        const reloadResp = await axiosInstance.get("/cart");
+        const items = reloadResp.data.items || [];
+        const details = await Promise.all(
+          items.map(async (item) => {
+            try {
+              const prodResp = await axiosInstance.get(
+                `/products/${item.product_id}`
+              );
+              return {
+                product_id: item.product_id,
+                quantity: item.quantity,
+                product: prodResp.data,
+              };
+            } catch {
+              return {
+                product_id: item.product_id,
+                quantity: item.quantity,
+                product: null,
+              };
+            }
+          })
+        );
+        setDetailedItems(details);
+      } catch (reloadErr) {
+        console.error("Failed to reload cart:", reloadErr);
+      }
+    }
+  };
+
+  // 4) Place order
+  const handlePlaceOrder = async () => {
+    if (detailedItems.length === 0) return;
+    try {
+      await axiosInstance.post("/orders/");
+      navigate("/orders");
+    } catch (err) {
+      console.error("Place order error:", err);
+      const status = err.response?.status;
+      if (status === 401 || status === 403) {
+        logout();
+      } else {
+        setError(err.response?.data?.detail || "Could not place order.");
+      }
+    }
+  };
+
+  // 5) Render states
+  if (loading) {
+    return (
+      <div className="p-6 text-center text-gray-600">
+        Loading your cart…
+      </div>
+    );
   }
 
+  if (error && detailedItems.length === 0) {
+    return (
+      <div className="p-6 text-center text-red-600">{error}</div>
+    );
+  }
+
+  if (detailedItems.length === 0) {
+    return (
+      <div className="p-6 max-w-3xl mx-auto">
+        <h2 className="text-2xl font-bold mb-4">Your Cart</h2>
+        <p>Your cart is empty.</p>
+      </div>
+    );
+  }
+
+  const totalPrice = detailedItems.reduce((sum, it) => {
+    if (!it.product) return sum;
+    return sum + it.product.price * it.quantity;
+  }, 0);
+
   return (
-    <div className="max-w-2xl mx-auto">
-      <h2 className="text-2xl font-bold mb-4">Your Cart</h2>
+    <div className="p-6 max-w-4xl mx-auto space-y-6">
+      <h2 className="text-2xl font-bold">Your Cart</h2>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded">
+          {error}
+        </div>
+      )}
+
       <table className="w-full border-collapse">
         <thead>
           <tr className="border-b">
             <th className="text-left py-2">Product</th>
-            <th className="text-left py-2">Qty</th>
-            <th className="text-right py-2">Price</th>
-            <th className="text-right py-2">Subtotal</th>
-            <th />
+            <th className="text-left py-2">Unit Price</th>
+            <th className="text-left py-2">Quantity</th>
+            <th className="text-left py-2">Subtotal</th>
+            <th className="text-left py-2">Action</th>
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => (
-            <tr key={item.product.id} className="border-b">
-              <td className="py-2">{item.product.name}</td>
-              <td className="py-2">
-                <input
-                  type="number"
-                  min={1}
-                  className="border px-2 py-1 w-16"
-                  value={item.quantity}
-                  onChange={(e) =>
-                    updateQuantity(item.product.id, parseInt(e.target.value, 10) || 1)
-                  }
-                />
-              </td>
-              <td className="text-right py-2">${item.product.price.toFixed(2)}</td>
-              <td className="text-right py-2">
-                ${(item.product.price * item.quantity).toFixed(2)}
-              </td>
-              <td className="py-2 text-right">
-                <button
-                  onClick={() => removeFromCart(item.product.id)}
-                  className="text-red-500 underline"
-                >
-                  Remove
-                </button>
-              </td>
-            </tr>
-          ))}
+          {detailedItems.map((item) => {
+            const { product_id, quantity, product } = item;
+            const name = product ? product.name : "Unknown";
+            const price = product ? product.price : 0;
+            const subtotal = price * quantity;
+
+            return (
+              <tr key={product_id} className="border-b">
+                <td className="py-3">{name}</td>
+                <td className="py-3">${price.toFixed(2)}</td>
+                <td className="py-3">
+                  <select
+                    className="border px-2 py-1"
+                    value={quantity}
+                    onChange={(e) =>
+                      handleQuantityChange(
+                        product_id,
+                        Number(e.target.value)
+                      )
+                    }
+                  >
+                    {[0, 1, 2, 3, 4, 5].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="py-3">${subtotal.toFixed(2)}</td>
+                <td className="py-3">
+                  <button
+                    className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                    onClick={() => handleRemove(product_id)}
+                  >
+                    Remove
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 
-      <div className="text-right mt-4">
-        <p className="text-xl font-semibold">Total: ${total.toFixed(2)}</p>
-        <button
-          onClick={handleCheckout}
-          className="mt-2 bg-blue-600 text-white px-4 py-2 rounded"
-        >
-          Checkout
-        </button>
+      <div className="text-right text-xl font-semibold">
+        Total: ${totalPrice.toFixed(2)}
       </div>
+
+      <button
+        onClick={handlePlaceOrder}
+        className="mt-4 bg-green-600 text-white px-5 py-2 rounded hover:bg-green-700"
+      >
+        Place Order
+      </button>
     </div>
   );
 }

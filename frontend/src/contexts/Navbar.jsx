@@ -1,37 +1,56 @@
-// src/components/Navbar.jsx
+// src/contexts/Navbar.jsx
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { useCart } from '../contexts/CartContext';
+import { Link } from 'react-router-dom';
+import { useAuth } from './AuthContext';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
-  const { items } = useCart();
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
 
   return (
-    <nav className="bg-blue-600 text-white p-4 flex justify-between">
-      <div>
-        <Link to="/" className="font-bold text-xl">
-          Mini Amazon
-        </Link>
-      </div>
-      <div className="space-x-4">
-        <Link to="/">Home</Link>
-        {user && <Link to="/cart">Cart ({items.length})</Link>}
-        {user && <Link to="/orders">Orders</Link>}
-        {!user && <Link to="/login">Login</Link>}
-        {!user && <Link to="/signup">Signup</Link>}
-        {user && (
-          <button onClick={handleLogout} className="underline">
-            Logout
-          </button>
-        )}
+    <nav className="bg-gray-800 text-white px-4 py-3">
+      <div className="container mx-auto flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Link to="/" className="hover:underline">
+            Home
+          </Link>
+          <Link to="/products" className="hover:underline">
+            Products
+          </Link>
+
+          {user ? (
+            <>
+              <Link to="/cart" className="hover:underline">
+                Cart
+              </Link>
+              <Link to="/orders" className="hover:underline">
+                My Orders
+              </Link>
+            </>
+          ) : null}
+        </div>
+
+        <div className="flex items-center space-x-4">
+          {user ? (
+            <>
+              <span>Hello, {user.name}</span>
+              <button
+                onClick={logout}
+                className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded"
+              >
+                Log Out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="hover:underline">
+                Login
+              </Link>
+              <Link to="/signup" className="hover:underline">
+                Sign Up
+              </Link>
+            </>
+          )}
+        </div>
       </div>
     </nav>
   );

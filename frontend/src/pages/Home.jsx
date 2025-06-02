@@ -1,33 +1,41 @@
-// src/pages/Home.jsx
-import React, { useState, useEffect } from 'react';
-import axiosInstance from '../api/axiosInstance';
-import ProductCard from '../components/ProductCard';
+// src/pages/Home.jsx (snippet)
+import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import axiosInstance from "../api/axiosInstance";
 
 export default function Home() {
   const [products, setProducts] = useState([]);
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchProducts() {
+    async function loadAll() {
       try {
-        const resp = await axiosInstance.get('/products/');
+        const resp = await axiosInstance.get("/products");
         setProducts(resp.data);
       } catch (err) {
-        setError('Failed to load products.');
+        console.error(err);
+      } finally {
+        setLoading(false);
       }
     }
-    fetchProducts();
+    loadAll();
   }, []);
 
+  if (loading) return <div className="p-4">Loading products…</div>;
   return (
-    <div>
-      <h2 className="text-2xl mb-4">All Products</h2>
-      {error && <p className="text-red-500">{error}</p>}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {products.map((prod) => (
-          <ProductCard key={prod.id} product={prod} />
-        ))}
-      </div>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6">
+      {products.map((p) => (
+        <div key={p.id} className="border p-4 rounded space-y-2">
+          <h3 className="text-xl font-semibold">{p.name}</h3>
+          <p className="text-gray-600">${p.price.toFixed(2)}</p>
+          <Link
+            to={`/products/${p.id}`}
+            className="text-blue-600 hover:underline"
+          >
+            View Details
+          </Link>
+        </div>
+      ))}
     </div>
   );
 }

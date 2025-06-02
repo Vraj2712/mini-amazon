@@ -1,65 +1,78 @@
 // src/contexts/CartContext.jsx
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext } from "react";
+import axiosInstance from "../api/axiosInstance";
+import { useAuth } from "./AuthContext";
 
 const CartContext = createContext({
-  items: [],
-  addToCart: (product) => {},
-  removeFromCart: (productId) => {},
-  updateQuantity: (productId, qty) => {},
+  cartItems: [],         // current array of items
+  fetchCart: async () => {}, 
+  addItem: async (id, qty) => {},
+  removeItem: async (id) => {},
   clearCart: () => {},
 });
 
 export function CartProvider({ children }) {
-  const [items, setItems] = useState(
-    JSON.parse(localStorage.getItem('cart_items')) || []
-  );
+  const { user } = useAuth();               // watch for user login/logout
+  const [cartItems, setCartItems] = useState([]);
 
-  // Persist cart to localStorage
-  const persist = (newItems) => {
-    localStorage.setItem('cart_items', JSON.stringify(newItems));
-    setItems(newItems);
-  };
-
-  const addToCart = (product, quantity = 1) => {
-    const existing = items.find((i) => i.product.id === product.id);
-    let updated;
-    if (existing) {
-      updated = items.map((i) =>
-        i.product.id === product.id
-          ? { ...i, quantity: i.quantity + quantity }
-          : i
-      );
+  // 1. Fetch cart whenever `user` changes (login or logout)
+  useEffect(() => {
+    if (user) {
+      fetchCart();
     } else {
-      updated = [...items, { product, quantity }];
+      setCartItems([]); // clear cart when no user
     }
-    persist(updated);
-  };
+  }, [user]);
 
-  const removeFromCart = (productId) => {
-    const updated = items.filter((i) => i.product.id !== productId);
-    persist(updated);
-  };
+  // 2. fetchCart(): GET /cart
+  async function fetchCart() {
+    try {
+      const resp = await axiosInstance.get("/cart");
+      // Assuming backend returns { items: [ { product_id, quantity, product: {...} }, ... ] }
+      setCartItems(resp.data.items || []);
+    } catch (err) {
+      console.error("Could not fetch cart:", err);
+    }
+  }
 
-  const updateQuantity = (productId, quantity) => {
-    const updated = items.map((i) =>
-      i.product.id === productId ? { ...i, quantity } : i
-    );
-    persist(updated);
-  };
+  // 3. addItem(productId, quantity): POST /cart/add
+  async function addItem(productId, quantity) {
+    try {
+      await axiosInstance.post("/cart/add", { product_id: productId, quantity });
+      // Re‐fetch so React‐state stays in sync with the backend
+      await fetchCart();
+    } catch (err) {
+      console.error("Could not add item to cart:", err);
+      throw err;
+    }
+  }
 
-  const clearCart = () => {
-    persist([]);
-  };
+  // 4. removeItem(productId): just call addItem with qty=0 (or do a DELETE)
+  async function removeItem(productId) {
+    try {
+      await axiosInstance.post("/cart/add", { product_id: productId, quantity: 0 });
+      await fetchCart();
+    } catch (err) {
+      console.error("Could not remove item from cart:", err);
+      throw err;
+    }
+  }
+
+  // 5. clearCart(): convenience if you want to wipe the cart
+  function clearCart() {
+    setCartItems([]);
+  }
 
   return (
     <CartContext.Provider
-      value={{ items, addToCart, removeFromCart, updateQuantity, clearCart }}
+      value={{ cartItems, fetchCart, addItem, removeItem, clearCart }}
     >
       {children}
     </CartContext.Provider>
   );
 }
 
+// Custom hook
 export function useCart() {
   return useContext(CartContext);
 }

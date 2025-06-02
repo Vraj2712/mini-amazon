@@ -1,21 +1,13 @@
-// src/components/ProductCard.jsx
-import React from 'react';
-import { Link } from 'react-router-dom';
+// src/components/ProtectedRoute.jsx
+import React from "react";
+import { Navigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
-export default function ProductCard({ product }) {
-  return (
-    <div className="border rounded shadow p-4 hover:shadow-lg transition">
-      <Link to={`/product/${product.id}`}>
-        <h3 className="text-xl font-semibold mb-2">{product.name}</h3>
-      </Link>
-      <p className="mb-2">${product.price.toFixed(2)}</p>
-      <p className="text-sm text-gray-600">{product.description}</p>
-      <Link
-        to={`/product/${product.id}`}
-        className="mt-2 block bg-blue-500 text-white text-center py-1 rounded"
-      >
-        View Details
-      </Link>
-    </div>
-  );
+export default function ProtectedRoute({ children }) {
+  const { user } = useAuth();
+  if (!user) {
+    // If not logged in, redirect to /login
+    return <Navigate to="/login" replace />;
+  }
+  return children;
 }
