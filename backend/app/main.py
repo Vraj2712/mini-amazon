@@ -23,3 +23,25 @@ app.include_router(auth_router)
 app.include_router(product_router)
 app.include_router(cart_router)
 app.include_router(order_router)
+
+# ────────────────────────────────── CORS SETUP ──────────────────────────────────
+origins = [
+    "http://localhost:3000",        # your React dev server
+    "http://127.0.0.1:3000",        # in case you access via 127.0.0.1
+    # (add other origins if necessary, e.g. your production domain)
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],    # or ["GET","POST", ...] if you prefer
+    allow_headers=["*"],
+)
+# ────────────────────────────────────────────────────────────────────────────────
+
+# include your routers here
+app.include_router(auth_router)
+app.include_router(product_router)
+app.include_router(cart_router)
+app.include_router(order_router)

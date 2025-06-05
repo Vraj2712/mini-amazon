@@ -151,3 +151,50 @@ async def get_products_by_category(category_name: str):
     async for prod in cursor:
         results.append(product_helper(prod))
     return results
+
+@router.get("/categories", response_model=List[str])
+async def list_categories():
+    """
+    Return a deduplicated list of all category strings, e.g. ["Electronics", "Clothing", …]
+    """
+    distinct_cats = await db.products.distinct("category")
+    # filter out any empty or None values
+    return [c for c in distinct_cats if c]
+
+@router.get("/search", response_model=List[ProductResponse])
+async def search_products(
+    q: Optional[str] = Query(None),
+    min_price: Optional[float] = Query(None, ge=0),
+    max_price: Optional[float] = Query(None, ge=0),
+    in_stock: Optional[bool] = Query(None),
+    category: Optional[str] = Query(None),
+    page: int = 1,
+    limit: int = 12,
+):
+    query = {}
+
+    if q:
+        query["name"] = {"$regex": q, "$options": "i"}
+
+    if min_price is not None or max_price is not None:
+        price_filter = {}
+        if min_price is not None:
+            price_filter["$gte"] = min_price
+        if max_price is not None:
+            price_filter["$lte"] = max_price
+        query["price"] = price_filter
+
+    if in_stock is not None:
+        query["in_stock"] = in_stock
+
+    if category:
+        query["category"] = category
+
+    # Pagination: skip / limit
+    skip = (page - 1) * limit
+    cursor = db.products.find(query).skip(skip).limit(limit)
+
+    results = []
+    async for prod in cursor:
+        results.append(product_helper(prod))
+    return results

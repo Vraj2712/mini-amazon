@@ -7,6 +7,7 @@ from datetime import datetime
 from bson import ObjectId
 from app.schemas.order_schema import OrderStatusUpdate
 from app.auth.dependencies import require_admin
+from datetime import datetime
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -72,3 +73,18 @@ async def update_order_status(order_id: str, update: OrderStatusUpdate, admin_us
     updated_order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return order_helper(updated_order)
 
+@router.post("/", response_model=OrderResponse, status_code=201)
+async def place_order(current_user=Depends(get_current_user)):
+    # … existing cart-and-order logic …
+
+    new_order = {
+        "user_email": current_user.email,
+        "items": cart["items"],   # array of { product_id, quantity }
+        "status": "pending",
+        "created_at": datetime.utcnow(),
+    }
+    result = await db.orders.insert_one(new_order)
+    saved = await db.orders.find_one({"_id": result.inserted_id})
+    # (optional) clear the cart afterwards
+    await db.carts.delete_one({"user_email": current_user.email})
+    return order_helper(saved)
