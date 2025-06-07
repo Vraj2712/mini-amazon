@@ -17,7 +17,7 @@ export default function Home() {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [inStock, setInStock] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState(""); 
+  const [selectedCategory, setSelectedCategory] = useState("");
   const [page, setPage] = useState(1);                    // current page number
   const limit = 12;                                       // items per page
 
@@ -64,8 +64,8 @@ export default function Home() {
   //
   useEffect(() => {
     // any time `page` changes, re-fetch with current filters
-    handleFilter(); 
-    // eslint-disable react-hooks/exhaustive-deps
+    handleFilter();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
   //

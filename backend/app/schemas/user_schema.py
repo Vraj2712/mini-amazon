@@ -42,3 +42,15 @@ class UserPublic(BaseModel):
     model_config = {
         "from_attributes": True
     }
+class UserUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    password: Optional[str] = None
+
+class UserResponse(BaseModel):
+    id: str
+    name: str
+    email: str
+    created_at: datetime
+    is_admin: bool = False
+
+    model_config = {"from_attributes": True}

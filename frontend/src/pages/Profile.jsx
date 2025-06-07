@@ -4,104 +4,129 @@ import axiosInstance from "../api/axiosInstance";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function Profile() {
-  const { user, logout } = useAuth(); // user.email, user.name, user.id
-  const [name, setName] = useState(user?.name || "");
+  const { user, logout } = useAuth();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [message, setMessage] = useState("");
+  const [createdAt, setCreatedAt] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
-  // In case user object changes, sync local name field
+  // On mount, fetch /auth/user to populate fields
   useEffect(() => {
-    if (user) {
-      setName(user.name);
+    async function fetchUser() {
+      setLoading(true);
+      setError("");
+      try {
+        const resp = await axiosInstance.get("/auth/user");
+        const data = resp.data;
+        setName(data.name);
+        setEmail(data.email);
+        setCreatedAt(new Date(data.created_at).toLocaleString());
+        setIsAdmin(data.is_admin);
+      } catch (err) {
+        console.error(err);
+        setError("Failed to load profile. Please log in again.");
+      } finally {
+        setLoading(false);
+      }
     }
-  }, [user]);
+    fetchUser();
+  }, []);
 
+  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    setMessage("");
+    setSuccessMsg("");
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+    // Build payload: only include fields if changed
+    const payload = {};
+    if (name.trim() !== "" && name !== user.name) {
+      payload.name = name.trim();
+    }
+    if (password.trim() !== "") {
+      payload.password = password;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      setError("No changes to save.");
       return;
     }
 
     try {
-      // Build the payload only including changed fields
-      const payload = {};
-      if (name && name !== user.name) payload.name = name;
-      if (password) payload.password = password;
-
-      if (Object.keys(payload).length === 0) {
-        setError("No changes to save.");
-        return;
-      }
-
       const resp = await axiosInstance.put("/auth/user", payload);
-      setMessage("Profile updated successfully.");
-      // Optionally force a re-login if password changed:
-      if (payload.password) {
-        setMessage("Password updated. Please log in again.");
-        logout();
-      }
+      // On success, update local state with returned values
+      setName(resp.data.name);
+      setSuccessMsg("Profile updated successfully.");
+      // Clear the password field after update
+      setPassword("");
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.detail || "Failed to update profile.");
     }
   };
 
-  if (!user) {
-    return <p className="p-6">Loading profile…</p>;
+  if (loading) {
+    return <div className="p-6">Loading profile…</div>;
   }
 
   return (
-    <div className="max-w-md mx-auto p-6">
+    <div className="max-w-md mx-auto p-6 space-y-6">
       <h2 className="text-2xl font-bold mb-4">My Profile</h2>
-      {message && <p className="text-green-600 mb-2">{message}</p>}
-      {error && <p className="text-red-600 mb-2">{error}</p>}
+
+      {error && <p className="text-red-500">{error}</p>}
+      {successMsg && <p className="text-green-600">{successMsg}</p>}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Display email (read-only) */}
-        <div>
-          <label className="block mb-1 font-medium">Email</label>
-          <input
-            type="email"
-            value={user.email}
-            readOnly
-            className="border p-2 w-full bg-gray-100"
-          />
-        </div>
-        {/* Update name */}
         <div>
           <label className="block mb-1 font-medium">Name</label>
           <input
             type="text"
+            className="border p-2 w-full"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="border p-2 w-full"
+            required
           />
         </div>
-        {/* Update password */}
+        <div>
+          <label className="block mb-1 font-medium">Email (read‐only)</label>
+          <input
+            type="email"
+            className="border p-2 w-full bg-gray-100"
+            value={email}
+            readOnly
+          />
+        </div>
+        <div>
+          <label className="block mb-1 font-medium">Created At</label>
+          <input
+            type="text"
+            className="border p-2 w-full bg-gray-100"
+            value={createdAt}
+            readOnly
+          />
+        </div>
+        <div>
+          <label className="block mb-1 font-medium">Is Admin?</label>
+          <input
+            type="text"
+            className="border p-2 w-full bg-gray-100"
+            value={isAdmin ? "Yes" : "No"}
+            readOnly
+          />
+        </div>
         <div>
           <label className="block mb-1 font-medium">New Password</label>
           <input
             type="password"
+            className="border p-2 w-full"
+            placeholder="Leave blank to keep current password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="border p-2 w-full"
-            placeholder="Leave blank to keep current"
-          />
-        </div>
-        <div>
-          <label className="block mb-1 font-medium">Confirm New Password</label>
-          <input
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            className="border p-2 w-full"
-            placeholder="Re-enter new password"
           />
         </div>
 
@@ -112,6 +137,14 @@ export default function Profile() {
           Save Changes
         </button>
       </form>
+
+      <hr className="my-6" />
+      <button
+        onClick={logout}
+        className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+      >
+        Log Out
+      </button>
     </div>
   );
 }

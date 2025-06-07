@@ -1,7 +1,7 @@
 // src/App.jsx
 import React from "react";
 import { Routes, Route } from "react-router-dom";
-
+import OrderDetail from "./pages/OrderDetail";
 import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Profile from "./pages/Profile";
@@ -43,6 +43,22 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/orders/:orderId"
+          element={
+            <ProtectedRoute>
+              <OrderDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+           element={
+             <ProtectedRoute>
+               <Profile />
+             </ProtectedRoute>
+           }
+         />
         <Route
           path="/profile"
           element={

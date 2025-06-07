@@ -33,14 +33,13 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["http://localhost:3000"],  # ← your React dev server
     allow_credentials=True,
-    allow_methods=["*"],    # or ["GET","POST", ...] if you prefer
+    allow_methods=["*"],
     allow_headers=["*"],
 )
-# ────────────────────────────────────────────────────────────────────────────────
 
-# include your routers here
+# Include routers
 app.include_router(auth_router)
 app.include_router(product_router)
 app.include_router(cart_router)

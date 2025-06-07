@@ -31,6 +31,11 @@ export default function Navbar() {
         <Link to="/" style={{ color: "white", textDecoration: "none" }}>
           Home
         </Link>
+        {user && (
+           <Link to="/profile" className="hover:underline">
+             Profile
+          </Link>
+         )}
         <Link to="/cart" style={{ color: "white", textDecoration: "none" }}>
           Cart ({cartCount})
         </Link>
