@@ -1,16 +1,20 @@
-// src/components/ProtectedRoute.jsx
-import React from "react";
+// import this at top
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
-export default function ProtectedRoute({ children }) {
-  const { user } = useAuth();
+export default function ProtectedRoute({ children, adminOnly = false }) {
+  const { user, token } = useAuth();
 
-  // If not logged in, redirect to /login
-  if (!user) {
+  // Not logged in → go to login
+  if (!token) {
     return <Navigate to="/login" replace />;
   }
 
-  // Otherwise render the protected page
+  // If this route is adminOnly but user isn’t admin, kick back home
+  if (adminOnly && !user?.is_admin) {
+    return <Navigate to="/" replace />;
+  }
+
+  // OK!
   return children;
 }

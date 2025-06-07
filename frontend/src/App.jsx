@@ -11,6 +11,7 @@ import Cart from "./pages/Cart";
 import Orders from "./pages/Orders";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import AdminDashboard from "./pages/AdminDashboard";
 
 function App() {
   return (
@@ -53,12 +54,21 @@ function App() {
         />
         <Route
           path="/profile"
-           element={
-             <ProtectedRoute>
-               <Profile />
-             </ProtectedRoute>
-           }
-         />
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+        {/* Admin dashboard (adminOnly) */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute adminOnly>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/profile"
           element={

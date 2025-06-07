@@ -1,6 +1,6 @@
 // src/components/Navbar.jsx
 import React from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useCart } from "../contexts/CartContext";
 
@@ -9,82 +9,75 @@ export default function Navbar() {
   const { cartItems } = useCart();
   const navigate = useNavigate();
 
-  // Count total quantity in cart
-  const cartCount = cartItems.reduce((sum, i) => sum + i.quantity, 0);
+  // total items in cart
+  const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleLogout = () => {
     logout();
     navigate("/login");
   };
 
-  return (
-    <nav
-      style={{
-        background: "#222",
-        color: "white",
-        padding: "0.5rem 1rem",
-        display: "flex",
-        justifyContent: "space-between",
-      }}
-    >
-      <div style={{ display: "flex", gap: "1rem" }}>
-        <Link to="/" style={{ color: "white", textDecoration: "none" }}>
-          Home
-        </Link>
-        {user && (
-           <Link to="/profile" className="hover:underline">
-             Profile
-          </Link>
-         )}
-        <Link to="/cart" style={{ color: "white", textDecoration: "none" }}>
-          Cart ({cartCount})
-        </Link>
-        {user && (
-          <Link
-            to="/orders"
-            style={{ color: "white", textDecoration: "none" }}
-          >
-            My Orders
-          </Link>
-        )}
-      </div>
+  // style active vs inactive links
+  const linkClasses = ({ isActive }) =>
+    isActive
+      ? "text-white underline"
+      : "text-gray-300 hover:text-white";
 
-      <div style={{ display: "flex", gap: "1rem" }}>
+  return (
+    <nav className="bg-gray-900 p-4 flex justify-between items-center">
+      <ul className="flex space-x-6">
+        <li>
+          <NavLink to="/" className={linkClasses}>
+            Home
+          </NavLink>
+        </li>
+        <li>
+          <NavLink to="/cart" className={linkClasses}>
+            Cart ({cartCount})
+          </NavLink>
+        </li>
+        {user && (
+          <li>
+            <NavLink to="/orders" className={linkClasses}>
+              My Orders
+            </NavLink>
+          </li>
+        )}
+        {user && (
+          <li>
+            <NavLink to="/profile" className={linkClasses}>
+              Profile
+            </NavLink>
+          </li>
+        )}
+        {user?.is_admin && (
+          <li>
+            <NavLink to="/admin" className={linkClasses}>
+              Admin
+            </NavLink>
+          </li>
+        )}
+      </ul>
+
+      <div className="flex items-center space-x-4">
         {user ? (
           <>
-            <Link
-              to="/"
-              style={{ color: "white", textDecoration: "none" }}
-            >
-              Hello, {user.name}
-            </Link>
+            <span className="text-gray-100">Hello, {user.name}</span>
             <button
               onClick={handleLogout}
-              style={{
-                background: "transparent",
-                border: "1px solid white",
-                color: "white",
-                padding: "0.25rem 0.5rem",
-                cursor: "pointer",
-              }}
+              className="px-3 py-1 border border-gray-300 rounded text-gray-300 hover:border-white hover:text-white"
             >
               Logout
             </button>
           </>
         ) : (
           <>
-            <Link
-              to="/login"
-              style={{ color: "white", textDecoration: "none" }}
-            >
+            <NavLink to="/login" className={linkClasses}>
               Login
-            </Link>
-            <Link
-              to="/signup"
-              style={{ color: "white", textDecoration: "none" }}
-            >
+            </NavLink>
+            <NavLink to="/signup" className={linkClasses}>
               Sign Up
-            </Link>
+            </NavLink>
           </>
         )}
       </div>

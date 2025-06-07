@@ -5,6 +5,7 @@ from app.routes.cart_routes import router as cart_router
 from app.routes.product_routes import router as product_router
 from app.routes.order_routes import router as order_router
 from fastapi.middleware.cors import CORSMiddleware
+from app.routes.admin_routes import router as admin_router
 
 app = FastAPI()
 
@@ -23,6 +24,7 @@ app.include_router(auth_router)
 app.include_router(product_router)
 app.include_router(cart_router)
 app.include_router(order_router)
+app.include_router(admin_router)
 
 # ────────────────────────────────── CORS SETUP ──────────────────────────────────
 origins = [
@@ -44,3 +46,4 @@ app.include_router(auth_router)
 app.include_router(product_router)
 app.include_router(cart_router)
 app.include_router(order_router)
+app.include_router(admin_router)

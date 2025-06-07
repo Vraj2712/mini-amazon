@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import datetime
 from bson import ObjectId
+from typing import List
 
 from app.schemas.user_schema import (
     UserCreate,
@@ -12,7 +13,7 @@ from app.schemas.user_schema import (
     UserUpdateRequest,
 )
 from app.auth.utils import hash_password, verify_password, create_access_token
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_admin
 from app.database import db
 from app.models.user_model import user_helper
 
@@ -52,7 +53,7 @@ async def signup(user: UserCreate):
 @router.post("/login")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     """
-    Authenticate with email/password (form‐encoded). Return a Bearer token.
+    Authenticate with email/password (form‑encoded). Return a Bearer token.
     """
     user = await db.users.find_one({"email": form_data.username})
     if not user or not verify_password(form_data.password, user["hashed_password"]):
@@ -71,7 +72,7 @@ async def update_current_user_info(
     current_user=Depends(get_current_user)
 ):
     """
-    Allow a logged‐in user to update their name and/or password.
+    Allow a logged‑in user to update their name and/or password.
     """
     update_data = {}
 
@@ -93,3 +94,40 @@ async def update_current_user_info(
     # 4) Fetch fresh document and run it through user_helper(...)
     updated = await db.users.find_one({"_id": ObjectId(current_user.id)})
     return user_helper(updated)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Admin‑only: list all users
+# ─────────────────────────────────────────────────────────────────────────────
+@router.get("/users", response_model=List[UserPublic])
+async def list_all_users(admin=Depends(require_admin)):
+    """
+    Admin only: return all registered users (public fields).
+    """
+    users = []
+    cursor = db.users.find()
+    async for u in cursor:
+        users.append(user_helper(u))
+    return users
+
+@router.put(
+    "/users/{user_id}/promote",
+    dependencies=[Depends(require_admin)],
+    summary="Promote a user to admin",
+)
+async def promote_user_to_admin(user_id: str):
+    """
+    Set `is_admin = True` on the given user.  Admin-only.
+    """
+    try:
+        oid = ObjectId(user_id)
+    except Exception:
+        raise HTTPException(400, "Invalid user_id format")
+
+    result = await db.users.update_one(
+        {"_id": oid},
+        {"$set": {"is_admin": True}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, f"No user found with id {user_id}")
+    return {"message": f"User {user_id} is now an admin"}
