@@ -1,31 +1,30 @@
 # app/schemas/product_schema.py
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from datetime import datetime
 
 class ProductBase(BaseModel):
+    model_config = ConfigDict(extra="ignore")
     name: str
-    description: Optional[str]
+    description: Optional[str] = None
     price: float
     in_stock: bool = True
-    category: Optional[str] = None    # ← new line
+    category: Optional[str] = None    # ← added here
 
 class ProductCreate(ProductBase):
     pass
 
 class ProductUpdate(BaseModel):
-    name: Optional[str]
-    description: Optional[str]
-    price: Optional[float]
-    in_stock: Optional[bool]
-    category: Optional[str] = None    # ← new line
+    model_config = ConfigDict(extra="ignore")
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    in_stock: Optional[bool] = None
+    category: Optional[str] = None    # ← and here
 
 class ProductResponse(ProductBase):
     id: str
     created_at: datetime
-    category: Optional[str] = None    # ← new line
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = ConfigDict(from_attributes=True)

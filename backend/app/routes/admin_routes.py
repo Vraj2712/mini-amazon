@@ -1,16 +1,21 @@
 # app/routes/admin_routes.py
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import List
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from typing import List, Optional
 from bson import ObjectId
 from datetime import datetime
+from pydantic import BaseModel
 
 from app.auth.dependencies import require_admin
 from app.database import db
 from app.models.user_model import user_helper
-from app.schemas.user_schema import UserPublic
+from app.schemas.user_schema import UserResponse
 from app.models.product_model import product_helper
-from app.schemas.product_schema import ProductCreate, ProductUpdate, ProductResponse
+from app.schemas.product_schema import (
+    ProductCreate,
+    ProductUpdate,
+    ProductResponse,
+)
 
 router = APIRouter(
     prefix="/admin",
@@ -18,6 +23,8 @@ router = APIRouter(
     dependencies=[Depends(require_admin)]
 )
 
+
+# ── STATS ───────────────────────────────────────────────────────────────────────
 @router.get("/stats")
 async def get_admin_stats():
     total_users    = await db.users.count_documents({})
@@ -36,30 +43,50 @@ async def get_admin_stats():
         "orders_by_status": orders_by_status,
     }
 
-# ── User Management ──────────────────────────────────────────────────────────────
 
-@router.get("/users", response_model=List[UserPublic])
+# ── USER MANAGEMENT ─────────────────────────────────────────────────────────────
+class RoleUpdate(BaseModel):
+    is_admin: bool
+
+@router.get("/users", response_model=List[UserResponse])
 async def list_users(
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100)
+    q: Optional[str] = Query(None, description="Filter by name or email"),
+    page: int       = Query(1, ge=1),
+    limit: int      = Query(20, ge=1, le=100),
 ):
     skip = (page - 1) * limit
-    cursor = db.users.find().skip(skip).limit(limit)
+    query: dict = {}
+    if q:
+        # case‐insensitive name or email match
+        query["$or"] = [
+            {"name": {"$regex": q, "$options": "i"}},
+            {"email": {"$regex": q, "$options": "i"}},
+        ]
+
+    cursor = db.users.find(query).skip(skip).limit(limit)
     out = []
     async for u in cursor:
         out.append(user_helper(u))
     return out
 
-@router.put("/users/{user_id}/role", response_model=UserPublic)
-async def change_user_role(user_id: str, is_admin: bool):
+
+@router.put(
+    "/users/{user_id}/role",
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def change_user_role(
+    user_id: str,
+    update: RoleUpdate,
+):
     try:
         oid = ObjectId(user_id)
-    except Exception:
+    except:
         raise HTTPException(status_code=400, detail="Invalid user ID")
 
     result = await db.users.update_one(
         {"_id": oid},
-        {"$set": {"is_admin": is_admin}}
+        {"$set": {"is_admin": update.is_admin}}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
@@ -68,33 +95,50 @@ async def change_user_role(user_id: str, is_admin: bool):
     return user_helper(updated)
 
 
-# ── Product Management ───────────────────────────────────────────────────────────
-
+# ── PRODUCT MANAGEMENT ─────────────────────────────────────────────────────────
 @router.get("/products", response_model=List[ProductResponse])
 async def list_products(
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100)
+    q: Optional[str] = Query(None, description="Filter by product name"),
+    page: int       = Query(1, ge=1),
+    limit: int      = Query(20, ge=1, le=100),
 ):
     skip = (page - 1) * limit
-    cursor = db.products.find().skip(skip).limit(limit)
+    query: dict = {}
+    if q:
+        query["name"] = {"$regex": q, "$options": "i"}
+
+    cursor = db.products.find(query).skip(skip).limit(limit)
     out = []
     async for p in cursor:
         out.append(product_helper(p))
     return out
 
-@router.post("/products", response_model=ProductResponse, status_code=201)
+
+@router.post(
+    "/products",
+    response_model=ProductResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_product(product: ProductCreate):
-    d = product.model_dump()
-    d["created_at"] = datetime.utcnow()
-    res = await db.products.insert_one(d)
-    new = await db.products.find_one({"_id": res.inserted_id})
+    data = product.model_dump()
+    data["created_at"] = datetime.utcnow()
+    result = await db.products.insert_one(data)
+    new = await db.products.find_one({"_id": result.inserted_id})
     return product_helper(new)
 
-@router.put("/products/{product_id}", response_model=ProductResponse)
-async def update_product(product_id: str, upd: ProductUpdate):
+
+@router.put(
+    "/products/{product_id}",
+    response_model=ProductResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def update_product(
+    product_id: str,
+    upd: ProductUpdate,
+):
     try:
         oid = ObjectId(product_id)
-    except Exception:
+    except:
         raise HTTPException(status_code=400, detail="Invalid product ID")
 
     data = {k: v for k, v in upd.model_dump().items() if v is not None}
@@ -105,11 +149,15 @@ async def update_product(product_id: str, upd: ProductUpdate):
     updated = await db.products.find_one({"_id": oid})
     return product_helper(updated)
 
-@router.delete("/products/{product_id}", status_code=204)
+
+@router.delete(
+    "/products/{product_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 async def delete_product(product_id: str):
     try:
         oid = ObjectId(product_id)
-    except Exception:
+    except:
         raise HTTPException(status_code=400, detail="Invalid product ID")
 
     result = await db.products.delete_one({"_id": oid})
