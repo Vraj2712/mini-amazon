@@ -1,20 +1,17 @@
-// import this at top
-import { Navigate } from "react-router-dom";
+// src/components/ProtectedRoute.jsx
 import { useAuth } from "../contexts/AuthContext";
+import { Navigate } from "react-router-dom";
 
 export default function ProtectedRoute({ children, adminOnly = false }) {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
 
-  // Not logged in → go to login
-  if (!token) {
+  if (!user) {
+    // Not logged in
     return <Navigate to="/login" replace />;
   }
-
-  // If this route is adminOnly but user isn’t admin, kick back home
-  if (adminOnly && !user?.is_admin) {
+  if (adminOnly && !user.is_admin) {
+    // Logged in but not an admin
     return <Navigate to="/" replace />;
   }
-
-  // OK!
   return children;
 }

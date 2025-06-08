@@ -1,55 +1,32 @@
 // src/pages/AdminDashboard.jsx
-
-import React, { useEffect, useState } from "react";
-import axiosInstance from "../api/axiosInstance";
-import { useAuth } from "../contexts/AuthContext";
+import React, { useState } from "react";
+import StatsTab from "../components/admin/StatsTab";
+import UsersTab from "../components/admin/UsersTab";
+import ProductsTab from "../components/admin/ProductsTab";
 
 export default function AdminDashboard() {
-  const { user } = useAuth();
-  const [summary, setSummary] = useState(null);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    axiosInstance
-      .get("/admin/summary")
-      .then((res) => setSummary(res.data))
-      .catch((err) => setError(err.response?.data?.detail || "Failed to load"));
-  }, []);
-
-  if (!user?.is_admin) return <p className="p-6">403: Forbidden</p>;
-  if (error) return <p className="p-6 text-red-600">Error: {error}</p>;
-  if (!summary) return <p className="p-6">Loading dashboard…</p>;
+  const [tab, setTab] = useState("stats");
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6 bg-white shadow">
-      <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 border rounded">
-          <h3 className="font-medium">Users</h3>
-          <p className="text-3xl">{summary.total_users}</p>
-        </div>
-        <div className="p-4 border rounded">
-          <h3 className="font-medium">Products</h3>
-          <p className="text-3xl">{summary.total_products}</p>
-        </div>
-        <div className="p-4 border rounded">
-          <h3 className="font-medium">Orders</h3>
-          <p className="text-3xl">{summary.total_orders}</p>
-        </div>
+    <div className="p-6 max-w-5xl mx-auto">
+      <h1 className="text-3xl font-bold mb-4">Admin Dashboard</h1>
+      <div className="flex space-x-4 mb-6">
+        {["stats","users","products"].map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 rounded ${
+              tab === t ? "bg-blue-600 text-white" : "bg-gray-200"
+            }`}
+          >
+            {t.charAt(0).toUpperCase() + t.slice(1)}
+          </button>
+        ))}
       </div>
 
-      <div className="mt-6">
-        <h2 className="font-semibold">Orders by Status</h2>
-        <ul className="mt-2 space-y-1">
-          {Object.entries(summary.orders_by_status).map(([status, count]) => (
-            <li key={status} className="flex justify-between">
-              <span>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
-              <span>{count}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      {tab === "stats" && <StatsTab />}
+      {tab === "users" && <UsersTab />}
+      {tab === "products" && <ProductsTab />}
     </div>
   );
 }
