@@ -5,6 +5,7 @@ from typing import List, Optional
 from bson import ObjectId
 from datetime import datetime
 from pydantic import BaseModel
+from app.models.order_model import order_helper
 
 from app.auth.dependencies import require_admin
 from app.database import db
@@ -164,3 +165,37 @@ async def delete_product(product_id: str):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Product not found")
     return
+
+@router.get("/orders", response_model=List[dict])
+async def get_orders_by_status(
+    status: Optional[str] = Query(None),
+    email: Optional[str] = Query(None),
+    start: Optional[datetime] = Query(None),
+    end: Optional[datetime] = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    admin_user=Depends(require_admin)
+):
+    query = {}
+    if status:
+        query["status"] = status
+    if email:
+        query["user_email"] = email
+    if start and end:
+        query["created_at"] = {"$gte": start, "$lte": end}
+
+    cursor = db.orders.find(query).skip((page - 1) * limit).limit(limit)
+    orders = [order_helper(order) async for order in cursor]
+    return orders
+
+@router.get("/orders/export")
+async def export_orders(admin_user=Depends(require_admin)):
+    cursor = db.orders.find({})
+    orders = [order_helper(order) async for order in cursor]
+    
+    def iter_csv():
+        yield "OrderID,UserEmail,TotalPrice,Status\n"
+        for order in orders:
+            yield f"{order['id']},{order['user_email']},{order['total_price']},{order['status']}\n"
+    
+    return StreamingResponse(iter_csv(), media_type="text/csv")

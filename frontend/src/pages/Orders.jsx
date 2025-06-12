@@ -1,82 +1,80 @@
 // src/pages/Orders.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axiosInstance from "../api/axiosInstance";
+import { useWs } from "../contexts/WsContext";
 
 export default function Orders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    async function loadOrders() {
-      setLoading(true);
-      setError("");
-      try {
-        // 1) fetch raw orders
-        const resp = await axiosInstance.get("/orders");
-        const rawOrders = resp.data; // array of {id, items[], status, created_at}
-
-        // 2) for each order, fetch product details in parallel
-        const detailed = await Promise.all(
-          rawOrders.map(async (order) => {
-            const itemsWithDetails = await Promise.all(
-              order.items.map(async (item) => {
-                try {
-                  const pResp = await axiosInstance.get(
-                    `/products/${item.product_id}`
-                  );
-                  return {
-                    name: pResp.data.name,
-                    price: pResp.data.price,
-                    quantity: item.quantity,
-                  };
-                } catch {
-                  return { name: "Unknown", price: 0, quantity: item.quantity };
-                }
-              })
-            );
-
-            const total = itemsWithDetails.reduce(
-              (sum, it) => sum + it.price * it.quantity,
-              0
-            );
-
-            return {
-              id: order.id,
-              created_at: new Date(order.created_at).toLocaleString(),
-              status: order.status,
-              items: itemsWithDetails,
-              total: total.toFixed(2),
-            };
-          })
-        );
-
-        setOrders(detailed);
-      } catch (err) {
-        console.error(err);
-        setError("Failed to load orders. Please try again.");
-      } finally {
-        setLoading(false);
-      }
+  // Helper to reload all orders
+  const loadOrders = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const resp = await axiosInstance.get("/orders");
+      const raw = resp.data;
+      const detailed = await Promise.all(
+        raw.map(async (order) => {
+          const items = await Promise.all(
+            order.items.map(async (it) => {
+              try {
+                const p = await axiosInstance.get(`/products/${it.product_id}`);
+                return {
+                  name: p.data.name,
+                  price: p.data.price,
+                  quantity: it.quantity,
+                };
+              } catch {
+                return { name: "Unknown", price: 0, quantity: it.quantity };
+              }
+            })
+          );
+          const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+          return {
+            id: order.id,
+            created_at: new Date(order.created_at).toLocaleString(),
+            status: order.status,
+            items,
+            total: total.toFixed(2),
+          };
+        })
+      );
+      setOrders(detailed);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load orders. Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    loadOrders();
   }, []);
 
-  if (loading) {
-    return <div className="p-6">Loading your orders…</div>;
-  }
-  if (error) {
-    return <div className="p-6 text-red-600">Error: {error}</div>;
-  }
-  if (orders.length === 0) {
+  // Initial load
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  // When an order_update arrives, update that order in our local state
+  useWs((msg) => {
+    if (msg.type === "order_update") {
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === msg.order_id ? { ...o, status: msg.new_status } : o
+        )
+      );
+    }
+  });
+
+  if (loading) return <div className="p-6">Loading your orders…</div>;
+  if (error)   return <div className="p-6 text-red-600">Error: {error}</div>;
+  if (!orders.length)
     return (
       <div className="p-6">
         <h2 className="text-2xl font-bold mb-4">My Orders</h2>
         <p>You haven’t placed any orders yet.</p>
       </div>
     );
-  }
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -93,7 +91,9 @@ export default function Orders() {
                 {order.created_at}
               </span>
             </div>
-            <p className="mt-1">Status: <strong>{order.status}</strong></p>
+            <p className="mt-1">
+              Status: <strong>{order.status}</strong>
+            </p>
             <ul className="mt-2 space-y-1">
               {order.items.map((it, idx) => (
                 <li key={idx} className="flex justify-between">
@@ -113,4 +113,3 @@ export default function Orders() {
     </div>
   );
 }
-

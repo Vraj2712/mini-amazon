@@ -4,6 +4,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { CartProvider } from "./contexts/CartContext";
+import { WsProvider } from "./contexts/WsContext";
 import App from "./App";
 import "./index.css";
 
@@ -13,7 +14,9 @@ root.render(
     <BrowserRouter>
       <AuthProvider>
         <CartProvider>
-          <App />
+          <WsProvider>
+            <App />
+          </WsProvider>
         </CartProvider>
       </AuthProvider>
     </BrowserRouter>
