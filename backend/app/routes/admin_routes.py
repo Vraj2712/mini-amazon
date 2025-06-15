@@ -1,11 +1,12 @@
 # app/routes/admin_routes.py
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
 from typing import List, Optional
 from bson import ObjectId
 from datetime import datetime
 from pydantic import BaseModel
 from app.models.order_model import order_helper
+import os, shutil
 
 from app.auth.dependencies import require_admin
 from app.database import db
@@ -24,8 +25,22 @@ router = APIRouter(
     dependencies=[Depends(require_admin)]
 )
 
+# ──────────────────────────────── UPLOAD IMAGE ────────────────────────────────
+UPLOAD_DIR = "uploads/products"
 
-# ── STATS ───────────────────────────────────────────────────────────────────────
+@router.post("/products/upload-image")
+async def admin_upload_image(file: UploadFile = File(...)):
+    try:
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+        file_path = os.path.join(UPLOAD_DIR, file.filename)
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        image_url = f"/uploads/products/{file.filename}"
+        return {"url": image_url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ──────────────────────────────── ADMIN DASHBOARD STATS ────────────────────────────────
 @router.get("/stats")
 async def get_admin_stats():
     total_users    = await db.users.count_documents({})
@@ -44,64 +59,48 @@ async def get_admin_stats():
         "orders_by_status": orders_by_status,
     }
 
-
-# ── USER MANAGEMENT ─────────────────────────────────────────────────────────────
+# ──────────────────────────────── USER MANAGEMENT ────────────────────────────────
 class RoleUpdate(BaseModel):
     is_admin: bool
 
 @router.get("/users", response_model=List[UserResponse])
 async def list_users(
     q: Optional[str] = Query(None, description="Filter by name or email"),
-    page: int       = Query(1, ge=1),
-    limit: int      = Query(20, ge=1, le=100),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
 ):
     skip = (page - 1) * limit
     query: dict = {}
     if q:
-        # case‐insensitive name or email match
         query["$or"] = [
             {"name": {"$regex": q, "$options": "i"}},
             {"email": {"$regex": q, "$options": "i"}},
         ]
 
     cursor = db.users.find(query).skip(skip).limit(limit)
-    out = []
-    async for u in cursor:
-        out.append(user_helper(u))
+    out = [user_helper(u) async for u in cursor]
     return out
 
-
-@router.put(
-    "/users/{user_id}/role",
-    response_model=UserResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def change_user_role(
-    user_id: str,
-    update: RoleUpdate,
-):
+@router.put("/users/{user_id}/role", response_model=UserResponse)
+async def change_user_role(user_id: str, update: RoleUpdate):
     try:
         oid = ObjectId(user_id)
     except:
         raise HTTPException(status_code=400, detail="Invalid user ID")
 
-    result = await db.users.update_one(
-        {"_id": oid},
-        {"$set": {"is_admin": update.is_admin}}
-    )
+    result = await db.users.update_one({"_id": oid}, {"$set": {"is_admin": update.is_admin}})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
 
     updated = await db.users.find_one({"_id": oid})
     return user_helper(updated)
 
-
-# ── PRODUCT MANAGEMENT ─────────────────────────────────────────────────────────
+# ──────────────────────────────── PRODUCT MANAGEMENT ────────────────────────────────
 @router.get("/products", response_model=List[ProductResponse])
 async def list_products(
     q: Optional[str] = Query(None, description="Filter by product name"),
-    page: int       = Query(1, ge=1),
-    limit: int      = Query(20, ge=1, le=100),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
 ):
     skip = (page - 1) * limit
     query: dict = {}
@@ -109,17 +108,10 @@ async def list_products(
         query["name"] = {"$regex": q, "$options": "i"}
 
     cursor = db.products.find(query).skip(skip).limit(limit)
-    out = []
-    async for p in cursor:
-        out.append(product_helper(p))
+    out = [product_helper(p) async for p in cursor]
     return out
 
-
-@router.post(
-    "/products",
-    response_model=ProductResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/products", response_model=ProductResponse)
 async def create_product(product: ProductCreate):
     data = product.model_dump()
     data["created_at"] = datetime.utcnow()
@@ -127,16 +119,21 @@ async def create_product(product: ProductCreate):
     new = await db.products.find_one({"_id": result.inserted_id})
     return product_helper(new)
 
+@router.get("/products/{product_id}", response_model=ProductResponse)
+async def get_product_by_id(product_id: str):
+    try:
+        oid = ObjectId(product_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid product ID")
+    
+    prod = await db.products.find_one({"_id": oid})
+    if not prod:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    return product_helper(prod)
 
-@router.put(
-    "/products/{product_id}",
-    response_model=ProductResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def update_product(
-    product_id: str,
-    upd: ProductUpdate,
-):
+@router.put("/products/{product_id}", response_model=ProductResponse)
+async def update_product(product_id: str, upd: ProductUpdate):
     try:
         oid = ObjectId(product_id)
     except:
@@ -150,11 +147,7 @@ async def update_product(
     updated = await db.products.find_one({"_id": oid})
     return product_helper(updated)
 
-
-@router.delete(
-    "/products/{product_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
+@router.delete("/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_product(product_id: str):
     try:
         oid = ObjectId(product_id)
@@ -166,6 +159,7 @@ async def delete_product(product_id: str):
         raise HTTPException(status_code=404, detail="Product not found")
     return
 
+# ──────────────────────────────── ORDER MANAGEMENT ────────────────────────────────
 @router.get("/orders", response_model=List[dict])
 async def get_orders_by_status(
     status: Optional[str] = Query(None),
@@ -187,15 +181,3 @@ async def get_orders_by_status(
     cursor = db.orders.find(query).skip((page - 1) * limit).limit(limit)
     orders = [order_helper(order) async for order in cursor]
     return orders
-
-@router.get("/orders/export")
-async def export_orders(admin_user=Depends(require_admin)):
-    cursor = db.orders.find({})
-    orders = [order_helper(order) async for order in cursor]
-    
-    def iter_csv():
-        yield "OrderID,UserEmail,TotalPrice,Status\n"
-        for order in orders:
-            yield f"{order['id']},{order['user_email']},{order['total_price']},{order['status']}\n"
-    
-    return StreamingResponse(iter_csv(), media_type="text/csv")

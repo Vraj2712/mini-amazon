@@ -1,3 +1,5 @@
+# app/models/order_model.py
+
 def order_helper(order) -> dict:
     return {
         "id": str(order["_id"]),
@@ -13,5 +15,11 @@ def order_helper(order) -> dict:
             }
             for item in order.get("items", [])
         ],
-        "status_history": order.get("status_history", [])
+        "status_history": [
+            {
+                "status": history.get("status"),
+                "timestamp": history.get("timestamp")
+            }
+            for history in order.get("status_history", [])
+        ]
     }

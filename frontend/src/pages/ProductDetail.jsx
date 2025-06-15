@@ -1,4 +1,5 @@
 // src/pages/ProductDetail.jsx
+
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
@@ -43,8 +44,6 @@ export default function ProductDetail() {
         quantity: 1,
       });
       setSuccessMsg("✔ Added to cart!");
-      // Optionally, redirect to cart after a short delay:
-      // setTimeout(() => navigate("/cart"), 1000);
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.detail || "Failed to add to cart.");
@@ -78,6 +77,14 @@ export default function ProductDetail() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-4">
+      {product.image && (
+        <img
+          src={`http://localhost:8000${product.image}`}
+          alt={product.name}
+          className="w-full h-96 object-cover rounded"
+        />
+      )}
+
       <h1 className="text-3xl font-bold">{product.name}</h1>
       <p className="text-gray-700">{product.description}</p>
       <div className="text-xl font-semibold">Price: ${product.price.toFixed(2)}</div>

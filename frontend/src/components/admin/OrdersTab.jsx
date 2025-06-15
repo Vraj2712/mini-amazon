@@ -109,6 +109,15 @@ const OrdersTab = () => {
                   ))}
                 </ul>
 
+                <h5 className="font-semibold mt-3">Status History:</h5>
+                <ul className="list-disc list-inside">
+                  {order.status_history.map((h, idx) => (
+                    <li key={idx}>
+                      {h.status} at {new Date(h.timestamp).toLocaleString()}
+                    </li>
+                  ))}
+                </ul>
+
                 <div className="flex space-x-2 mt-4">
                   <button onClick={() => updateOrderStatus(order.id, 'shipped')} className="bg-blue-500 text-white px-3 py-1 rounded">Ship</button>
                   <button onClick={() => updateOrderStatus(order.id, 'delivered')} className="bg-green-500 text-white px-3 py-1 rounded">Deliver</button>

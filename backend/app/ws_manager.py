@@ -1,35 +1,50 @@
-# app/ws_manager.py
 from fastapi import WebSocket, WebSocketDisconnect
-from typing import Dict, List
+from jose import JWTError, jwt
+from app.database import db
+from app.schemas.user_schema import UserResponse
+from app.models.user_model import user_helper
+import os
+
+SECRET_KEY = os.getenv("JWT_SECRET", "supersecret")  # same as in your HTTP token generation
+ALGORITHM = "HS256"
 
 class ConnectionManager:
     def __init__(self):
-        # maps user_email → list of WebSocket connections
-        self.active: Dict[str, List[WebSocket]] = {}
+        self.active_connections: dict[str, WebSocket] = {}
 
-    async def connect(self, email: str, ws: WebSocket):
-        await ws.accept()
-        self.active.setdefault(email, []).append(ws)
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
 
-    def disconnect(self, email: str, ws: WebSocket):
-        conns = self.active.get(email)
-        if not conns:
+        token = websocket.query_params.get("token")
+        if not token:
+            await websocket.close(code=4001)
             return
-        if ws in conns:
-            conns.remove(ws)
-        if not conns:
-            # clean up empty lists
-            del self.active[email]
 
-    async def push_update(self, email: str, data: dict):
-        """
-        Send `data` as JSON to *all* WebSockets open for this user.
-        """
-        for ws in list(self.active.get(email, [])):
-            try:
-                await ws.send_json(data)
-            except WebSocketDisconnect:
-                # auto‐cleanup
-                self.disconnect(email, ws)
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            email: str = payload.get("sub")
+            if not email:
+                await websocket.close(code=4002)
+                return
+
+            user_doc = await db.users.find_one({"email": email})
+            if not user_doc:
+                await websocket.close(code=4003)
+                return
+
+            self.active_connections[email] = websocket
+
+        except JWTError:
+            await websocket.close(code=4004)
+            return
+
+    def disconnect(self, email: str):
+        if email in self.active_connections:
+            del self.active_connections[email]
+
+    async def push_update(self, email: str, message: dict):
+        websocket = self.active_connections.get(email)
+        if websocket:
+            await websocket.send_json(message)
 
 manager = ConnectionManager()

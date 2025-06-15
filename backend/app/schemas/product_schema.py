@@ -1,5 +1,3 @@
-# app/schemas/product_schema.py
-
 from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from datetime import datetime
@@ -10,7 +8,8 @@ class ProductBase(BaseModel):
     description: Optional[str] = None
     price: float
     in_stock: bool = True
-    category: Optional[str] = None    # ← added here
+    category: Optional[str] = None
+    image: Optional[str] = None  # <-- 🔥 ADD THIS 🔥
 
 class ProductCreate(ProductBase):
     pass
@@ -21,7 +20,8 @@ class ProductUpdate(BaseModel):
     description: Optional[str] = None
     price: Optional[float] = None
     in_stock: Optional[bool] = None
-    category: Optional[str] = None    # ← and here
+    category: Optional[str] = None
+    image: Optional[str] = None
 
 class ProductResponse(ProductBase):
     id: str
